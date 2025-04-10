@@ -3,11 +3,11 @@ import esphome.config_validation as cv
 from esphome.components import climate
 from esphome.components.sensor import Sensor
 from esphome.const import CONF_ID, CONF_SENSOR_ID
-from .. import ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_VALUE_FACTOR, not_zero_or_small
+from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_VALUE_FACTOR, not_zero_or_small
 
 DEPENDENCIES = ['rego600']
 
-RegoClimate = ns.class_("RegoClimate", climate.Climate, cg.PollingComponent)
+RegoClimate = rego_ns.class_("RegoClimate", climate.Climate, cg.PollingComponent)
 CONFIG_SCHEMA = climate.CLIMATE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(RegoClimate),

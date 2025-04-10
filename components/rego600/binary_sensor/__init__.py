@@ -2,11 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID
-from .. import ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_PAYLOAD_TRUE  #, CONF_PAYLOAD_FALSE
+from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_PAYLOAD_TRUE  #, CONF_PAYLOAD_FALSE
 
 DEPENDENCIES = ['rego600']
 
-RegoBinarySensor = ns.class_("RegoBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent)
+RegoBinarySensor = rego_ns.class_("RegoBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent)
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend( 
     {
         cv.GenerateID(): cv.declare_id(RegoBinarySensor),
@@ -23,7 +23,7 @@ async def to_code(config):
     await binary_sensor.register_binary_sensor(var, config)
     cg.add(var.set_rego_variable(int(config[CONF_REGO_VARIABLE])))
     cg.add(var.set_payload_true(int(config[CONF_PAYLOAD_TRUE])))
-    # cg.add(var.set_action_payload_false(int(config[CONF_PAYLOAD_FALSE])))
+    # cg.add(var.set_payload_false(int(config[CONF_PAYLOAD_FALSE])))
     paren = await cg.get_variable(config[CONF_HUB_ID])
     cg.add(var.register_hub(paren))
 

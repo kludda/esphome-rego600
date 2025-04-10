@@ -2,11 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID
-from .. import ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_VALUE_FACTOR, not_zero_or_small
+from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_VALUE_FACTOR, not_zero_or_small
 
 DEPENDENCIES = ['rego600']
 
-RegoSensor = ns.class_("RegoSensor", sensor.Sensor, cg.PollingComponent)
+RegoSensor = rego_ns.class_("RegoSensor", sensor.Sensor, cg.PollingComponent)
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend( 
     {
         cv.GenerateID(): cv.declare_id(RegoSensor),

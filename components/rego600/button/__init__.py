@@ -2,11 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button
 from esphome.const import CONF_ID
-from .. import ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_RETRY_WRITE, CONF_PAYLOAD
+from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE, CONF_RETRY_WRITE, CONF_PAYLOAD
 
 DEPENDENCIES = ['rego600']
 
-RegoButton = ns.class_("RegoButton", button.Button, cg.PollingComponent)
+RegoButton = rego_ns.class_("RegoButton", button.Button, cg.PollingComponent)
 CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend( 
     {
         cv.GenerateID(): cv.declare_id(RegoButton),

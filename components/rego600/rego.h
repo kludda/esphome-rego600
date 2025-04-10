@@ -1,5 +1,5 @@
 /*!
- * Base definition for regi_interface with class definitions for both internal and external use.
+ * Base definition for rego_interface with class definitions for both internal and external use.
  * 
  */
 

@@ -27,8 +27,8 @@ CONF_PAYLOAD = "payload"
 CONF_PAYLOAD_TRUE = "payload_true"
 CONF_PAYLOAD_FALSE = "payload_false"
 
-ns = cg.esphome_ns.namespace("esphome::rego")
-RegoInterfaceComponent = ns.class_("RegoInterfaceComponent", cg.Component)
+rego_ns = cg.esphome_ns.namespace("rego")
+RegoInterfaceComponent = rego_ns.class_("RegoInterfaceComponent", cg.Component)
 
 # REG_ADDR_SCHEMA = cv.Schema({cv.Required(CONF_REG_ADDR): cv.hex_int})
 

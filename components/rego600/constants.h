@@ -7,7 +7,7 @@ namespace rego {
 
 static const std::int16_t registers = 0x0000;
 /*
-600-635      636-         Register */ /*
+600-635        636-           Register */ /*
 //Sensor values
 0x0209         0x020B         "Radiator return [GT1]"
 0x020A         0x020C         "Outdoor [GT2]"

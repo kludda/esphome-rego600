@@ -27,6 +27,7 @@ void RegoInterfaceComponent::loop() {
         int available = 0;
         uint8_t response[MAX_READ];
         if ((available = this->uart_->available()) > 0) {
+            // this->activity_set_active("Reading data");
             size_t read_bytes = std::min<size_t>(available, MAX_READ);
             this->uart_->read_array(response, read_bytes);
             ESP_LOGI(TAG, "Data received from UART outside request: %s", this->data_to_hexstr(response, available).c_str());
@@ -186,6 +187,7 @@ bool RegoInterfaceComponent::command_and_response(uint8_t addr, uint8_t cmd, uin
 
     // Send command
     ESP_LOGD(TAG, "Command to send: %s", this->data_to_hexstr(request, sizeof(request)).c_str());
+    // this->activity_set_active("Write data");
     this->uart_->write_array(request, sizeof(request));
     this->uart_->flush();
 
