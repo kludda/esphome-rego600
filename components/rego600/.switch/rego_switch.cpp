@@ -3,12 +3,23 @@
 namespace esphome {
 namespace rego {
 
+
+
+
+/*
+This component is not adapted to the new state machine arch.
+Not sure what to use a switch component for in rego600....
+
+Code is left for reference for future development.
+*/
+
+
 static const char *TAG = "rego.switch";
 
 void RegoSwitch::setup() {
     ESP_LOGD(TAG, "Restoring switch %s", this->get_name().c_str());
     int16_t result = 0;
-    if (this->hub_->read_value(this->rego_variable_, &result)) {
+    if (this->hub_->read_value(this->rego_variable_, this->rego_command_, &result)) {
         this->publish_state(result == this->action_payload_true_);
     }
 }
@@ -32,6 +43,7 @@ void RegoSwitch::dump_config() {
     ESP_LOGCONFIG(TAG, "Rego Switch:");
     LOG_SWITCH("  ", "Switch", this);
     ESP_LOGCONFIG(TAG, "  Rego variable: 0x%s", this->int_to_hex(this->rego_variable_).c_str());
+    ESP_LOGCONFIG(TAG, "  Rego command: 0x%s", this->int_to_hex(this->rego_command_).c_str());
     ESP_LOGCONFIG(TAG, "  Payload true: %s", this->int_to_hex(this->action_payload_true_).c_str());
     ESP_LOGCONFIG(TAG, "  Payload false: %s", this->int_to_hex(this->action_payload_false_).c_str());
     ESP_LOGCONFIG(TAG, "  Hub: %s", this->hub_);
@@ -39,7 +51,7 @@ void RegoSwitch::dump_config() {
 
 void RegoSwitch::update() {
     int16_t result = 0;
-    if (this->hub_->read_value(this->rego_variable_, &result)) {
+    if (this->hub_->read_value(this->rego_variable_, this->rego_command_, &result)) {
         this->publish_state(result == this->action_payload_true_);
     }
     else {
@@ -51,7 +63,7 @@ void RegoSwitch::write_state(bool state) {
     uint16_t result = 0;
     // uint16_t value = (uint16_t)state;
     int16_t value = (state ? this->action_payload_true_ : this->action_payload_false_);
-    if (this->hub_->write_value(this->rego_variable_, value, &result)) {
+    if (this->hub_->write_value(this->rego_variable_, this->rego_command_, value, &result)) {
         this->publish_state(state);
         this->attempt_ = 0;
     }

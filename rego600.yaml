@@ -1,81 +1,68 @@
-substitutions:
-  devicename: rego-reader
-  friendly_name: "Reader Reader "
-  device_description: "Rego600 reader for heat-pump communication"
-
 esphome:
-  name: ${devicename}
-  friendly_name: ${friendly_name}
-  comment: "${device_description}"
+  name: heat-pump
+  friendly_name: Heat pump
 
 esp32:
-  board: esp32dev
+  board: esp32-c3-devkitm-1
   framework:
-    type: arduino
+    type: esp-idf
+
+
+# Enable logging
+logger:
+  level: INFO
+
+# Enable Home Assistant API, conf as applicable
+#api:
+#  encryption:
+#    key: "<key>"
+
+ota:
+  - platform: esphome
+    password: "<password>"
+
+# Enable web server, conf as applicable
+#web_server:
+#  port: 80
 
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Heat-Pump Fallback Hotspot"
+    password: "<password>"
+
 captive_portal:
 
-logger:
-  level: DEBUG
-  baud_rate: 0 # disable logging over uart
-
-api:
-  encryption:
-    key: !secret api_key
-
-ota:
-
-web_server:
 
 external_components:
-  - source: github://dala318/esphome-rego600
+#  - source: github://kludda/esphome-rego600
+  - source:
+      type: git
+      url: https://github.com/kludda/esphome-rego600
+      #ref: add-control-and-settings
+    refresh: 1s
 
 uart:
   id: uart_bus
   baud_rate: 19200
+  # For ESP-32 only HW uart is supported so pins must be accordingly (https://esphome.io/components/uart/)
+  tx_pin:
+    number: GPIO21
+  rx_pin:
+    number: GPIO20
+    inverted: true # The TX signal from the Rego is inverted.
+
 
 rego600:
   uart_id: uart_bus
   id: rego600_hub
-  log_all: true
 
-binary_sensor:
-  - platform: rego600
-    # rego600_id: rego600_hub  # Optional if only one hub
-    name: Ground loop pump P3
-    rego_variable: 0x01FD
 
-  - platform: rego600
-    name: Compresor
-    rego_variable: 0x01FE
-
-  - platform: rego600
-    name: Additional heat 3kW
-    rego_variable: 0x01FF
-
-  - platform: rego600
-    name: Additional heat 6kW
-    rego_variable: 0x0200
-
-  - platform: rego600
-    name: Radiator pump P1
-    rego_variable: 0x0203
-
-  - platform: rego600
-    name: Heat carrier pump P2
-    rego_variable: 0x0204
-
-  - platform: rego600
-    name: Tree-way valve VXV
-    rego_variable: 0x0205
-
-  - platform: rego600
-    name: Alarm
-    rego_variable: 0x0206
+# Reading a register takes significant time, the REGO is slow.
+# Keep update_intervals long for best functionality.
 
 sensor:
   - platform: rego600
@@ -85,6 +72,11 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 5min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.5
 
   - platform: rego600
     name: Outdoor GT2
@@ -93,30 +85,52 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 5min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.5
+    on_value:   # if changed send new affected control values
+      then:
+        - lambda: |-
+            id(radiator_return_target).update();
+            id(radiator_return_on).update();
+            id(radiator_return_off).update();
 
   - platform: rego600
     name: Hot water GT3
+    id: hot_water  # set id to be able to trigger update
     rego_variable: 0x020B
     value_factor: 0.1
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 5min
+    filters:
+      - or:
+        - lambda: |-  # I try want to investigate when and why the additional heat runs so when it does post each update
+            if (id(additional_heat_6kw).state) { return x; }
+            else { return {}; }
+        - throttle: 1h
+        - delta: 0.5
 
-  - platform: rego600
-    name: Forward GT4
-    rego_variable: 0x020C
-    value_factor: 0.1
-    unit_of_measurement: °C
-    state_class: measurement
-    accuracy_decimals: 1
+  # not installed in my system
+  #- platform: rego600
+    #name: Radiator forward GT4
+    #rego_variable: 0x020C
+    #value_factor: 0.1
+    #unit_of_measurement: °C
+    #state_class: measurement
+    #accuracy_decimals: 1
 
-  - platform: rego600
-    name: Room GT5
-    rego_variable: 0x020D
-    value_factor: 0.1
-    unit_of_measurement: °C
-    state_class: measurement
-    accuracy_decimals: 1
+  # not installed in my system
+  #- platform: rego600
+    #name: Room GT5
+    #rego_variable: 0x020D
+    #value_factor: 0.1
+    #unit_of_measurement: °C
+    #state_class: measurement
+    #accuracy_decimals: 1
 
   - platform: rego600
     name: Compressor GT6
@@ -125,6 +139,20 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 1
+
+  # not installed in my system
+  #- platform: rego600
+    #name: External hot water GT3x
+    #rego_variable: 0x0213
+    #value_factor: 0.1
+    #unit_of_measurement: °C
+    #state_class: measurement
+    #accuracy_decimals: 1
 
   - platform: rego600
     name: Heat fluid out GT8
@@ -133,6 +161,15 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - lambda: |-  # I try want to investigate when and why the additional heat runs so when it does post each update
+            if (id(additional_heat_6kw).state) { return x; }
+            else { return {}; }
+        - throttle: 1h
+        - delta: 0.5
+
 
   - platform: rego600
     name: Heat fluid in GT9
@@ -141,6 +178,11 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.5
 
   - platform: rego600
     name: Cold fluid in GT10
@@ -149,6 +191,7 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 30min
 
   - platform: rego600
     name: Cold fluid out GT11
@@ -157,112 +200,444 @@ sensor:
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
+    update_interval: 30min
 
+  # Control values. These are RO values based on settings and sensors
   - platform: rego600
-    name: External hot water GT3x
-    rego_variable: 0x0213
+    name: Radiator return GT1 target
+    id: radiator_return_target
+    rego_variable: 0x006E
     value_factor: 0.1
     unit_of_measurement: °C
     state_class: measurement
     accuracy_decimals: 1
-
-  - platform: template
-    name: Fake indoor actual temp
-    id: indoor_temp
-    lambda: |-
-      return id(gt1_target).state;
-
-# button:
-#   - platform: rego600
-#     name: External control
-#     rego_variable: 0x0213
-
-number:
-  - platform: rego600
-    name: GT1 Target value
-    id: gt1_target
-    rego_variable: 0x006E
-    value_factor: 0.1
-    unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.2
 
   - platform: rego600
-    name: GT1 On value
+    name: Radiator return GT1 on
+    id: radiator_return_on
     rego_variable: 0x006F
     value_factor: 0.1
     unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.2
 
   - platform: rego600
-    name: GT1 Off value
+    name: Radiator return GT1 off
+    id: radiator_return_off
     rego_variable: 0x0070
     value_factor: 0.1
     unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 1h
+        - delta: 0.2
 
   - platform: rego600
-    name: GT3 Target value
-    rego_variable: 0x002B
-    value_factor: 0.1
-    unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
-
-  - platform: rego600
-    name: GT3 On value
+    id: hot_water_on      # set id to be able to trigger update
+    name: Hot water GT3 on
     rego_variable: 0x0073
     value_factor: 0.1
     unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 2h
+        - delta: 1
+
 
   - platform: rego600
-    name: GT3 Off value
+    id: hot_water_off      # set id to be able to trigger update
+    name: Hot water GT3 off
     rego_variable: 0x0074
     value_factor: 0.1
     unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+    state_class: measurement
+    accuracy_decimals: 1
+    update_interval: 10min
+    filters:
+      - or:
+        - throttle: 2h
+        - delta: 1
 
-  - platform: rego600
-    name: GT4 Target value
-    rego_variable: 0x006D
-    value_factor: 0.1
-    unit_of_measurement: °C
-    min_value: 0
-    max_value: 100
-    step: 1
+  # not installed in my system
+  #- platform: rego600
+    #name: Radiator forward GT4 target
+    #rego_variable: 0x006D
+    #value_factor: 0.1
+    #unit_of_measurement: °C
+    #state_class: measurement
+    #accuracy_decimals: 1
 
   - platform: rego600
     name: Add heat power in %
-    rego_variable: 0x
+    rego_variable: 0x006C
     value_factor: 0.1
     unit_of_measurement: "%"
+    state_class: measurement
+
+
+number:
+  - platform: rego600
+    name: Heat curve
+    rego_variable: 0x0000
+    value_factor: 0.1
     min_value: 0
-    max_value: 100
-    step: 1
+    max_value: 10
+    step: 0.1
+    update_interval: 1h
+    on_value:   # if changed send new affected control values
+      then:
+        - delay: 3s  # give rego some time to calc new values
+        - lambda: |-
+            id(radiator_return_target).update();
+            id(radiator_return_on).update();
+            id(radiator_return_off).update();
 
-# climate:
-#   - platform: rego600
-#     name: House temp
-#     rego_variable: 0x0010
-#     sensor_id: indoor_temp
+  # I don't use so I disable
+  #- platform: rego600
+    #name: Heat curve fine adj.
+    #rego_variable: 0x0001
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
 
-# switch:
-#   - platform: rego600
-#     name: 
-#     rego_variable: 
+  - platform: rego600
+    name: Heat curve coupling diff.
+    unit_of_measurement: °C
+    rego_variable: 0x0002
+    value_factor: 0.1
+    min_value: 2
+    max_value: 15
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+    on_value:   # if changed send new affected control values
+      then:
+        - delay: 3s  # give rego some time to calc new values
+        - lambda: |-
+            id(radiator_return_target).update();
+            id(radiator_return_on).update();
+            id(radiator_return_off).update();
 
-# text_sensor:
-#   - platform: rego600
-#     name: 
-#     rego_variable: 
+
+  # I don't know what this is. Source of register:
+  # https://github.com/openhab/openhab-addons/blob/main/bundles/org.openhab.binding.regoheatpump/src/main/java/org/openhab/binding/regoheatpump/internal/rego6xx/RegoRegisterMapper.java
+  #- platform: rego600
+    #name: Heat curve 2
+    #rego_variable: 0x0003
+    #value_factor: 0.1
+    #min_value: 0
+    #max_value: 10
+    #step: 0.1
+
+  # I don't know what this is. Source of register:
+  # https://github.com/openhab/openhab-addons/blob/main/bundles/org.openhab.binding.regoheatpump/src/main/java/org/openhab/binding/regoheatpump/internal/rego6xx/RegoRegisterMapper.java
+  #- platform: rego600
+    #name: Heat curve 2 fine adj.
+    #unit_of_measurement: °C
+    #rego_variable: 0x0004
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+
+  #- platform: rego600
+    #name: Adj. curve at +20° out
+    #rego_variable: 0x001E
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+    #update_interval: 1h
+    
+  #- platform: rego600
+    #name: Adj. curve at +15° out
+    #rego_variable: 0x001C
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+    #update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at +10° out
+    rego_variable: 0x001A
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at + 5° out
+    rego_variable: 0x0018
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at + 0° out
+    rego_variable: 0x0016
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at - 5° out
+    rego_variable: 0x0014
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at -10° out
+    rego_variable: 0x0012
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at -15° out
+    rego_variable: 0x0010
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at -20° out
+    rego_variable: 0x000E
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  - platform: rego600
+    name: Adj. curve at -25° out
+    rego_variable: 0x000C
+    unit_of_measurement: °C
+    value_factor: 0.1
+    min_value: -10
+    max_value: 10
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+  
+  # Never this cold where I live so I disable
+  #- platform: rego600
+    #name: Adj. curve at -30° out
+    #rego_variable: 0x000A
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+  
+  # Never this cold where I live so I disable
+  #- platform: rego600
+    #name: Adj. curve at -35° out
+    #rego_variable: 0x0008
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+
+  - platform: rego600
+    name: Hot Water GT3 Target value
+    rego_variable: 0x002B
+    value_factor: 0.1
+    unit_of_measurement: °C
+    min_value: 35
+    max_value: 54
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+    on_value:   # if changed send new affected control values
+      then:
+        - delay: 1s  # give rego some time to calc new values
+        - lambda: |-
+            id(hot_water_on).update();
+            id(hot_water_off).update();
+
+  - platform: rego600
+    name: Hot Water GT3 Target Hysteresis
+    rego_variable: 0x002C
+    value_factor: 0.1
+    unit_of_measurement: °C
+    min_value: 2
+    max_value: 15
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+    on_value:   # if changed send new affected control values
+      then:
+        - delay: 1s  # give rego some time to calc new values
+        - lambda: |-
+            id(hot_water_on).update();
+            id(hot_water_off).update();
+
+  # not installed in my system
+  #- platform: rego600
+    #name: Indoor temp setting
+    #rego_variable: 0x0021
+    #unit_of_measurement: °C
+    #value_factor: 0.1
+    #min_value: 10
+    #max_value: 30
+    #step: 0.1
+
+  # not installed in my system
+  #- platform: rego600
+    #name: Curve infl. by in-temp.
+    #rego_variable: 0x0022
+    #value_factor: 0.1
+    #min_value: -10
+    #max_value: 10
+    #step: 0.1
+
+  - platform: rego600
+    name: Summer disconnect
+    rego_variable: 0x0024
+    value_factor: 0.1
+    unit_of_measurement: °C
+    min_value: 10
+    max_value: 30
+    step: 1 # 0.1 in rego but I choose 1
+    update_interval: 1h
+
+
+
+binary_sensor:
+  - platform: rego600
+    # rego600_id: rego600_hub  # Optional if only one hub
+    name: Cold fluid pump P3
+    id: cold_fluid_pump
+    rego_variable: 0x01FD
+    update_interval: 10min # update also triggered by compressor on/off
+
+  - platform: rego600
+    name: Compressor
+    rego_variable: 0x01FE
+    update_interval: 60s
+    on_state:   # if changed send new affected control values
+      then:
+        - lambda: |-
+            id(cold_fluid_pump).update();
+            id(tree_way_valve).update();
+            id(hot_water).update();
+
+  - platform: rego600
+    name: Additional heat 3kW
+    id: additional_heat_3kw    
+    rego_variable: 0x01FF
+
+  - platform: rego600
+    name: Additional heat 6kW
+    id: additional_heat_6kw
+    rego_variable: 0x0200
+
+
+  # Always on in my system. No need to log so I disable. 
+  #- platform: rego600
+    #name: Radiator pump P1
+    #rego_variable: 0x0203
+    #update_interval: 10min
+
+  # Always on in my system. No need to log so I disable. 
+  #- platform: rego600
+    #name: Heat carrier pump P2
+    #rego_variable: 0x0204
+    #update_interval: 10min
+
+  # to determine if compressor is running for heat or hotwater
+  - platform: rego600
+    name: Tree-way valve VXV
+    id: tree_way_valve
+    rego_variable: 0x0205
+    update_interval: 10min # update also triggered by compressor on/off
+
+  - platform: rego600
+    name: Alarm
+    rego_variable: 0x0206
+
+# LEDs
+# No need to log so I disable all
+  #- platform: rego600
+    #name: LED Power
+    #rego_variable: 0x0012
+
+  #- platform: rego600
+    #name: LED Pump
+    #rego_variable: 0x0013
+    
+  #- platform: rego600
+    #name: LED Add Heat
+    #rego_variable: 0x0014
+    
+  #- platform: rego600
+    #name: LED Boiler
+    #rego_variable: 0x0015
+    
+  #- platform: rego600
+    #name: LED Alarm
+    #rego_variable: 0x0016
+
+
+
+button:
+  # My keys work well and I need to be at the panel so I disable
+  #- platform: rego600
+    #name: Panel Key 1
+    #rego_variable: 0x0009
+
+  #- platform: rego600
+    #name: Panel Key 2
+    #rego_variable: 0x000A
+
+  #- platform: rego600
+    #name: Panel Key 3
+    #rego_variable: 0x000B
+
+  # My wheel hardly works so I keep these buttons so I can use when at the panel
+  - platform: rego600
+    name: Panel Wheel left
+    rego_variable: 0xff00
+
+  - platform: rego600
+    name: Panel Wheel right
+    rego_variable: 0xff01
+
+

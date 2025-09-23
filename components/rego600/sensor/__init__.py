@@ -7,14 +7,17 @@ from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE,
 DEPENDENCIES = ['rego600']
 
 RegoSensor = rego_ns.class_("RegoSensor", sensor.Sensor, cg.PollingComponent)
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend( 
-    {
-        cv.GenerateID(): cv.declare_id(RegoSensor),
-        cv.GenerateID(CONF_HUB_ID): cv.use_id(RegoInterfaceComponent),
-        cv.Required(CONF_REGO_VARIABLE): cv.hex_uint16_t,
-        cv.Optional(CONF_VALUE_FACTOR, default=1.): cv.All(cv.float_, not_zero_or_small),
-    }
-).extend(cv.polling_component_schema('10s'))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(RegoSensor)  # Changed from _SCHEMA to _schema()
+    .extend(
+        {
+            cv.GenerateID(CONF_HUB_ID): cv.use_id(RegoInterfaceComponent),
+            cv.Required(CONF_REGO_VARIABLE): cv.hex_uint16_t,
+            cv.Optional(CONF_VALUE_FACTOR, default=1.): cv.All(cv.float_, not_zero_or_small),
+        }
+    )
+    .extend(cv.polling_component_schema('120s'))
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
