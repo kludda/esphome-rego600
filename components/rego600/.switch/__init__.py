@@ -7,16 +7,19 @@ from .. import rego_ns, RegoInterfaceComponent, CONF_HUB_ID, CONF_REGO_VARIABLE,
 DEPENDENCIES = ['rego600']
 
 RegoSwitch = rego_ns.class_("RegoSwitch", switch.Switch, cg.PollingComponent)
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend( 
-    {
-        cv.GenerateID(): cv.declare_id(RegoSwitch),
-        cv.GenerateID(CONF_HUB_ID): cv.use_id(RegoInterfaceComponent),
-        cv.Required(CONF_REGO_VARIABLE): cv.hex_uint16_t,
-        cv.Optional(CONF_PAYLOAD_TRUE, default=1): cv.hex_uint16_t,
-        cv.Optional(CONF_PAYLOAD_FALSE, default=0): cv.hex_uint16_t,
-        cv.Optional(CONF_RETRY_WRITE, default=0): cv.uint8_t,
-    }
-).extend(cv.polling_component_schema('10s'))
+CONFIG_SCHEMA = (
+    switch.switch_schema(RegoSwitch)  # Changed from _SCHEMA to _schema()
+    .extend( 
+        {
+            #cv.GenerateID(): cv.declare_id(RegoSwitch),
+            cv.GenerateID(CONF_HUB_ID): cv.use_id(RegoInterfaceComponent),
+            cv.Required(CONF_REGO_VARIABLE): cv.hex_uint16_t,
+            cv.Optional(CONF_PAYLOAD_TRUE, default=1): cv.hex_uint16_t,
+            cv.Optional(CONF_PAYLOAD_FALSE, default=0): cv.hex_uint16_t,
+            cv.Optional(CONF_RETRY_WRITE, default=0): cv.uint8_t,
+        }
+    ).extend(cv.polling_component_schema('10s'))
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

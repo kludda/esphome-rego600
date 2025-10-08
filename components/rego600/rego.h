@@ -8,8 +8,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
-#include "constants.h"
-
 #include <cstdint>
 #include <cstddef>
 #include <memory>
@@ -20,73 +18,88 @@
 #include <iostream>
 #include <sstream>
 
+
+
 namespace esphome {
 namespace rego {
 
-#define MAX_READ 128
+
+#define UART_MAX_READ 128
+#define UART_RELEASE_DELAY 100
+#define UART_LOCK_TIMEOUT 10000
+
+#define SM_STATE_TIMEOUT 60000
+#define STATE_IDLE 0
+#define STATE_UPDATE_REQUEST 1
+#define STATE_COMMAND_REQUEST 2
+#define STATE_WAITING_FOR_RESPONSE 3
+#define STATE_WAITING_FOR_ACC 4
+
 
 class RegoInterfaceComponent : public Component {
 public:
     // Function override declarations
-    void setup() override { this->bussy_ = false; }
     void dump_config() override;
-    void loop() override;
 
-    // Function override definitions
+    // Function declaration
+	bool send_command(uint8_t cmd, uint16_t reg, uint16_t val);
+    bool recieve_read_response(size_t *available, int16_t *result);
+    bool receive_write_acc(size_t *available, int16_t *result);
+	void flush_uart_rx();
+    bool is_uart_locked();
 
-    // Function declaration component
-    bool read_value(int16_t reg, int16_t *result);
-    bool read_text(int16_t reg, std::string *result);
-    bool write_value(int16_t reg, int16_t value, uint16_t *result);
-
-    // Function definitions component
+    // Function definitions
     void set_model(std::string model){ this->model_ = model; }
-    void set_log_all(bool log_all) {this->log_all_ = log_all; }
-    void set_read_delay(int delay) {this->read_delay_ = delay; }
-    void set_retry_sleep(int sleep) {this->read_retry_sleep_ = sleep; }
-    void set_retry_attempts(uint8_t attempts) {this->read_retry_attempts_ = attempts; }
     void set_uart_parent(esphome::uart::UARTComponent *parent) { this->uart_ = parent; }
-    bool get_uart_bussy() { return this->bussy_; }
-    bool get_log_all() { return this->log_all_; }
+    void lock_uart() { this->uart_lock_time_ = millis(); this->uart_lock_ = true; }
+    void release_uart() { this->uart_release_lock_request_time_ = millis(); }
     std::string to_str() { return "Model: " + this->model_ + " UART: " + std::to_string(this->uart_->get_baud_rate()) + " baud"; }
 
 protected:
     // Function definitions
-    bool command_and_response(uint8_t addr, uint8_t cmd, uint16_t reg, uint16_t val, size_t *available, uint8_t *response);
     void int16_to_7bit_array(int16_t value, uint8_t *write_array); // convert int (16 bit) to array for sending
     std::string data_to_hexstr(const uint8_t *data, size_t len);
 
     // Thread mutex
-    bool bussy_ = false;
-    uint16_t bussy_counter_ = 0;
+	bool uart_lock_ = false;
+	unsigned long uart_lock_time_ =  0;
+	unsigned long uart_release_lock_request_time_ = 0;
 
     // Config parameters
     esphome::uart::UARTComponent *uart_{nullptr};
     std::string model_;
-    bool log_all_;
-    uint8_t read_delay_ = 10;
-    uint8_t read_retry_sleep_ = 10;
-    uint8_t read_retry_attempts_ = 5;
 };
+
+
 
 class RegoBase : public PollingComponent {
 public:
+    // Function override declarations
+    void update() override { }
+	void setup() override { }
+
+    // Function declaration
+	bool is_sm_state_timeout();
+    void set_sm_state(uint8_t state);
+
+    // Function definitions
+    uint8_t get_sm_state() { return this->state_; } 
     void register_hub(RegoInterfaceComponent *hub){ this->hub_ = hub; }
     void set_rego_variable(std::uint16_t rego_variable) { this->rego_variable_ = rego_variable; }
-    void set_rego_address(std::uint8_t rego_address) { this->rego_address_ = rego_address; }
-    void update() override { }
 
 protected:
-    std::string int_to_hex(std::uint16_t value) {
-        std::stringstream stream;
-        stream << std::setfill('0') << std::setw(sizeof(value)*2) << std::hex << value;
-        return stream.str();
-    }
+    // Function declaration
+    std::string int_to_hex(std::uint16_t value);
 
+	// SM
+	uint8_t state_ = STATE_IDLE;
+	unsigned long entered_state_ = 0;
+
+    // Config parameters
     RegoInterfaceComponent *hub_;
     std::uint16_t rego_variable_;
-    std::uint8_t rego_address_ = 0x02;
 };
+
 
 }  // namespace rego
 }  // namespace esphome

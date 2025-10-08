@@ -3,6 +3,15 @@
 namespace esphome {
 namespace rego {
 
+
+
+/*
+This component is not adapted to the new state machine arch.
+
+Code is left for reference for future development.
+*/
+
+
 static const char *TAG = "rego.climate";
 
 void RegoClimate::setup() {

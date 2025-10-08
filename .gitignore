@@ -2,3 +2,5 @@ __pycache__/
 .vscode/**
 components/rego600/esphome/**
 components/rego600/esphome.git
+.hidden
+

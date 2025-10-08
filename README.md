@@ -1,136 +1,32 @@
 # esphome-rego600
-Started as a fork of [Husdata H60 Arduino get started code](https://github.com/peterarandis/H60-OS) but it is now broken out as stand-alone custom component. Used a lot of influence from the following projects:
-  - [esphome/components/dsmr](https://github.com/esphome/esphome/tree/dev/esphome/components/dsmr) (how to combide a back-bone service and different types of child entities)
-  - [stream server for ESPHome](https://github.com/oxan/esphome-stream-server/) (how to create a service communicating over UART)
-  - [custom component esphome-rego1000](https://github.com/jagheterfredrik/esphome-rego1000) (a related integration, have been trying to keep external design as similar as possible)
-  - [how to connect heat pump with Rego 6xx controller](https://rago600.sourceforge.net/) (a lot of information about the Rego600 interface)
-  - [openhab addons](https://github.com/openhab/openhab-addons/tree/main/bundles/org.openhab.binding.regoheatpump), [mappings](https://github.com/openhab/openhab-addons/blob/main/bundles/org.openhab.binding.regoheatpump/src/main/java/org/openhab/binding/regoheatpump/internal/rego6xx/RegoRegisterMapper.java) (SW implementation for the interface)
+Started as a fork of https://github.com/dala318/esphome-rego600 but that had issues with blocking UART calls causing WDT reset during setup when adding all registers. **This fork is a major rewrite with a non-blocking state machine.**
 
-To be used as custom component to ESPHome
+Huge shout-out to ["How to connect heat pump with Rego 6xx controller"](https://rago600.sourceforge.net/) who I guess did most of the reverse engineering of the protocol used by most Rego600 interfaces out there.
+
+To be used as external component to ESPHome. To my knowledge this is now a working component that does what it is supposed to do.
+
+> **NOTE**: I'm a mechancial design engineer, not an electronics engineer nor a software engineer. Expect the quality to be accordingly :)
 
 ## Harware
-The component is not bound the any specific harware setup, it only requires that a UART port of the MCU is connectred to the external comms-port of the heat-pump. This far, successfull communication of one sensor and one binary_sensor has been made with a lab-setup as this one [Serial communication via optocouplers](https://forum.arduino.cc/t/serial-communication-via-optocouplers/686872/26)
+The component is not bound the any specific harware setup, it only requires that a UART port of the MCU is connectred to the external comms-port of the heat-pump.
 
-## Future planned functions
-  - Extent entity type support
-  - Provide ready-made input and output entities based on heat-pump model
+I used a ESP-C3 developmet board with external antenna. The ESP is mounted on the DB-9 connector and the antenna is mounted outside the heat pump enclosure. For UART interface I use logic level converter for the Rego RX signal and a simple voltage divider for the Rego TX signal. The logic level converter did not work for the Rego TX signal. The Rego TX signal is inverted.
 
-> **NOTE**: This integration is still in development and used at own risk. Connecting unsupported devices to your heat-pump via service interface may
-cause important settings to be overwritten and lost. Please start small with some read-only sensors.
+<img src="hardware/schematic.png" width="50%" />
 
-## Add the following to your ESPHome config
+> **WARNING**: I don't know if the Rego UART is isolated so I can't recommend this setup, I only describe what I have done.
 
-All entities are extendable with normal additional attrubutes as "unit_of_measurement", "state_class" etc.
-
-An as complete as possible configuration package as possible is provided in [rego600.yaml](rego600.yaml).
-Please use information from above provided links to adapt to your needs and model.
-When up and working it might be a good idea to prepare these type of templates [rego1000-v3.7.0.yaml](https://github.com/jagheterfredrik/esphome-rego1000/blob/main/rego1000-v3.7.0.yaml)
-
-```yaml
-external_components:
-  - source: github://dala318/esphome-rego600
-
-uart:
-  id: uart_bus
-  tx_pin: GPIO12
-  rx_pin: GPIO13
-  baud_rate: 19200
-  debug:            # Optional, good for degugging input/output of UART
-    direction: BOTH
-    dummy_receiver: false
-
-rego600:
-  uart_id: uart_bus
-  log_all: true
-  id: rego600_hub
-  log_all: true     # Optional, print some more
-  read_delay: 10ms  # Optional, delay to first reading of UART
-  retry_sleep: 20ms # Optional, delay between read attempts
-  retry_attempts: 1 # Optional, number of read retry attempts
-  # model: rego600    # Not in use!
-
-binary_sensor:
-  - platform: rego600
-    rego600_id: rego600_hub  # Optional if only one hub
-    name: Radiator pump P1
-    rego_variable: 0x0203
-
-sensor:
-  - platform: homeassistant  # Get actual indoor temp from other sensor, could also be a sensor read from rego600
-    entity_id: sensor.indoor_temperature
-    id: indoor_temp
-
-  - platform: rego600
-    name: Radiator return GT1
-    rego_variable: 0x0209
-    value_factor: 0.1         # Optional, scale factor multiply register-value -> real
-    # All configurations inherited from basic sensor
-    unit_of_measurement: °C
-    state_class: measurement
-    accuracy_decimals: 1
-
-  - platform: rego600
-    name: Outdoor GT2
-    rego_variable: 0x020A
-
-number:               # UNTESTED!
-  - platform: rego600
-    name: GT1 Target value
-    rego_variable: 0x006E
-    value_factor: 0.1 # Optional, scale factor multiply register-value -> real
-    retry_write: 1    # Optional, retry writing event if com bussy
-    # All configurations inherited from basic number
-    min_value: 0
-    max_value: 100
-    step: 1
-
-button:               # UNTESTED!
-  - platform: rego600
-    name: External control
-    rego_variable: 0x0213
-    payload: 0x01     # Optional, data to provide on action
-    retry_write: 3    # Optional, retry writing event if com bussy
-
-# Disabled: not really finalized, use the number component to set values
-# climate:
-#   - platform: rego600
-#     name: House temp
-#     rego_variable: 0x0010
-#     sensor_id: indoor_temp
-
-```
-
-## Function overview
-
-Flow overview for updating a single sensor entity
-
-```mermaid
-graph TD;
-    start(Start);
-    send[Send command]
-    read_delay[Wait read_delay]
-    data_available{Data in RX-buffer?}
-    retry_sleep[Wait retry_sleep];
-    retry_attempts{< retry_attempts};
-    read_data[Read data]
-    error(Error)
-    validate_data{Data valid?}
-    ok(Update sensor)
-
-    start-->send;
-    send-->read_delay;
-    read_delay-->data_available
-
-    data_available-->|no|retry_attempts;
-    retry_attempts-->|yes|retry_sleep;
-    retry_sleep-->data_available;
-    retry_attempts-->|no|error;
-
-    data_available-->|yes|read_data;
-    read_data-->validate_data;
-    validate_data-->|yes|ok
-    validate_data-->|no|error
-```
+> **INFO**: Don't get tempted running long cables for the serial bus. The checksum is calculated on the data part of the package only so transmission errors on the command will not be caught. Data for read is "0", so Rego will sometime think your sending a write command and write "0" to that register. Believe me, I've tried.
 
 
-For HW debugging it's suggested to use a [stream server](https://github.com/oxan/esphome-stream-server) to your config for direct connection between your PC and heat-pump. But have not tested this in combination and possible that the rego600 component and stream_server will not work together, stealing received messages from each other.
+## Configuration in ESPHome
+
+See [rego600.yaml](rego600.yaml) for an example ESPHome configuration. I've included all registers known to me and some ideas on automation etc.
+
+> **NOTE**: The label in my heat pump says "Rego637E". However the registers labeled "Rego600-635" at (https://rago600.sourceforge.net/) is what works for me, what is in the [rego600.yaml](rego600.yaml)
+
+
+## Licensing
+This work is licensed under the CC-BY 4.0 International License. To view a copy of this license, visit: https://creativecommons.org/licenses/by/4.0/
+
+Part of the code dealing with composing and decomposing the UART commands is most likely originating from the Arduino sketch provided by [how to connect heat pump with Rego 6xx controller](https://rago600.sourceforge.net/) licensed "postcardware", see the link.
