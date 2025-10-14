@@ -1,0 +1,4 @@
+"Comment","Designator","Footprint","LCSC"
+"BSS138","Q1","Package_TO_SOT_SMD:SOT-23","C78284"
+"20K 5%","R3","Resistor_SMD:R_0805_2012Metric","C4328"
+"10K 5%","R1,R2,R4","Resistor_SMD:R_0805_2012Metric","C17414"

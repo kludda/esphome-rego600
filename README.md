@@ -7,12 +7,15 @@ To be used as external component to ESPHome. To my knowledge this is now a worki
 
 > **NOTE**: I'm a mechancial design engineer, not an electronics engineer nor a software engineer. Expect the quality to be accordingly :)
 
-## Harware
+## Hardware
 The component is not bound the any specific harware setup, it only requires that a UART port of the MCU is connectred to the external comms-port of the heat-pump.
 
 I used a ESP-C3 developmet board with external antenna. The ESP is mounted on the DB-9 connector and the antenna is mounted outside the heat pump enclosure. For UART interface I use logic level converter for the Rego RX signal and a simple voltage divider for the Rego TX signal. The logic level converter did not work for the Rego TX signal. The Rego TX signal is inverted.
 
 <img src="hardware/schematic.png" width="50%" />
+
+There are manufacturing files (jlcpcb-*) adopted for ["JLC PCB"](https://jlcpcb.com/), as well as a KiCad 9.0 project in the  [`/hardware`](/hardware) folder. Connector and ESP32 Supermini board is DNP.
+
 
 > **WARNING**: I don't know if the Rego UART is isolated so I can't recommend this setup, I only describe what I have done.
 
